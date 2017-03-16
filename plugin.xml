@@ -1,0 +1,47 @@
+<?xml version='1.0' encoding='utf-8'?>
+<plugin id="cordova-plugin-azure-ad-b2c" version="0.0.1"
+  xmlns="http://apache.org/cordova/ns/plugins/1.0"
+  xmlns:android="http://schemas.android.com/apk/res/android">
+  
+    <name>AzureActiveDirectoryB2C</name>
+
+    <description>
+      This plugin allows authentication with Azure Active Directory B2C
+    </description>
+
+    <engines>
+      <engine name="cordova" version=">=4.3.0" />
+    </engines>
+
+    <js-module name="AzureActiveDirectoryB2C" src="www/azure_ad_b2c.js">
+      <clobbers target="cordova.plugins.azureActiveDirectoryB2C" />
+    </js-module>
+
+    <dependency id="cordova-plugin-cocoapod-support"/>
+
+    <platform name="ios">
+      <config-file target="config.xml" parent="/*">
+        <feature name="AzureActiveDirectoryB2C">
+          <param name="ios-package" value="AADB2CAuthenticator"/>
+        </feature>
+      </config-file>
+
+      <pods-config ios-min-version="9.0" use-frameworks="false"></pods-config>
+      <pod name="NXOAuth2Client" />
+
+      <header-file src="src/ios/AADB2CAuthenticator.h" />
+      <source-file src="src/ios/AADB2CAuthenticator.m" />
+
+      <header-file src="src/ios/AADB2CSettings.h" />
+      <source-file src="src/ios/AADB2CSettings.m" />
+
+      <header-file src="src/ios/AADB2CLoginViewController.h" />
+      <source-file src="src/ios/AADB2CLoginViewController.m" />
+
+      <header-file src="src/ios/NXOAuth2Connection+Extension.h" />
+      <source-file src="src/ios/NXOAuth2Connection+Extension.m" />
+
+      <header-file src="src/ios/NXOAuth2AccountStore+Extension.h" />
+      <source-file src="src/ios/NXOAuth2AccountStore+Extension.m" />  
+    </platform>
+</plugin>
