@@ -10,7 +10,7 @@
 #import "NXOAuth2.h"
 #import "NXOAuth2AccountStore+Extension.h"
 
-@interface AADB2CLoginViewController () <UIWebViewDelegate, NXOAuth2AccountStoreDelegate>
+@interface AADB2CLoginViewController () <UIWebViewDelegate, UIScrollViewDelegate, NXOAuth2AccountStoreDelegate>
 
 @property(strong, nonatomic) IBOutlet UIWebView *loginView;
 @property(strong, nonatomic) IBOutlet UIActivityIndicatorView *activityIndicator;
@@ -43,6 +43,9 @@
   _loginView = [[UIWebView alloc] initWithFrame:self.view.frame];
   [_loginView setTranslatesAutoresizingMaskIntoConstraints:NO];
   [_loginView setDelegate:self];
+  [_loginView.scrollView setScrollEnabled:NO];
+  [_loginView.scrollView setBounces:NO];
+  [_loginView.scrollView setDelegate:self];
   [self.view addSubview:_loginView];
   
   [self.view addConstraint:[NSLayoutConstraint constraintWithItem:_loginView attribute:NSLayoutAttributeBottom relatedBy:NSLayoutRelationEqual toItem:self.view attribute:NSLayoutAttributeBottom multiplier:1.0f constant:0.0f]];
@@ -50,7 +53,7 @@
   [self.view addConstraint:[NSLayoutConstraint constraintWithItem:_loginView attribute:NSLayoutAttributeTrailing relatedBy:NSLayoutRelationEqual toItem:self.view attribute:NSLayoutAttributeTrailing multiplier:1.0f constant:0.0f]];
   [self.view addConstraint:[NSLayoutConstraint constraintWithItem:_loginView attribute:NSLayoutAttributeTop relatedBy:NSLayoutRelationEqual toItem:self.view attribute:NSLayoutAttributeTop multiplier:1.0f constant:0.0f]];
   
-   _activityIndicator = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhiteLarge];
+  _activityIndicator = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhiteLarge];
   [_activityIndicator setColor:[UIColor grayColor]];
   [_activityIndicator setCenter:self.view.center];
   [self.view addSubview:_activityIndicator];
@@ -140,6 +143,12 @@
       [urlString rangeOfString:settings.loginUrl options:NSCaseInsensitiveSearch].location != NSNotFound) {
     [_activityIndicator stopAnimating];
   }
+}
+
+#pragma mark - UIScrollViewDelegate
+
+- (void)scrollViewDidScroll:(UIScrollView *)scrollView {
+  scrollView.bounds = _loginView.bounds;
 }
 
 #pragma mark - NXOAuth2AccountStoreDelegate
