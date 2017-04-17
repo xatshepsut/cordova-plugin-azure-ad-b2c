@@ -7,4 +7,8 @@ AzureActiveDirectoryB2C.prototype.authenticate = function(params, success, fail)
   return cordova.exec(success, fail, "AzureActiveDirectoryB2C", "authenticate", [params]);
 };
 
+AzureActiveDirectoryB2C.prototype.reauthenticate = function(success, fail) {
+  return cordova.exec(success, fail, "AzureActiveDirectoryB2C", "reauthenticate", [{}]);
+};
+
 window.AzureActiveDirectoryB2C = new AzureActiveDirectoryB2C();

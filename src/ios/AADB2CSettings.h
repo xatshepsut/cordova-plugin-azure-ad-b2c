@@ -6,6 +6,7 @@
 //
 
 #import <Foundation/Foundation.h>
+#import "NXOAuth2Account.h"
 
 @interface AADB2CSettings : NSObject
 
@@ -14,6 +15,7 @@
 @property (strong, nonatomic) NSString *policyName;
 
 @property (strong, nonatomic) NSString *authUrl;
+@property (strong, nonatomic) NSString *deauthUrl;
 @property (strong, nonatomic) NSString *loginUrl;
 @property (strong, nonatomic) NSString *tokenUrl;
 
@@ -23,8 +25,12 @@
 @property (strong, nonatomic) NSString *keychain;
 @property (strong, nonatomic) NSString *contentType;
 
+@property (weak, nonatomic) NXOAuth2Account *account;
+
 
 + (id)sharedInstance;
-- (BOOL)setupWithDictionary:(NSDictionary *)dictionary;
+
+- (void)setupWithDictionary:(NSDictionary *)dictionary;
+- (BOOL)isSetup;
 
 @end

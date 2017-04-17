@@ -40,8 +40,5 @@
 
       <header-file src="src/ios/NXOAuth2Connection+Extension.h" />
       <source-file src="src/ios/NXOAuth2Connection+Extension.m" />
-
-      <header-file src="src/ios/NXOAuth2AccountStore+Extension.h" />
-      <source-file src="src/ios/NXOAuth2AccountStore+Extension.m" />  
     </platform>
 </plugin>

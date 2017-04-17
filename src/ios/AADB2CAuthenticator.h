@@ -10,5 +10,6 @@
 @interface AADB2CAuthenticator : CDVPlugin
 
 - (void)authenticate:(CDVInvokedUrlCommand *)command;
+- (void)reauthenticate:(CDVInvokedUrlCommand *)command;
 
 @end

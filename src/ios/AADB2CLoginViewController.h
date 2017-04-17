@@ -19,5 +19,8 @@
 
 @property(nonatomic, weak, nullable) id <AADB2CLoginViewControllerDelegate> delegate;
 
+- (void)authenticate;
+- (void)reauthenticate;
+
 @end
 
