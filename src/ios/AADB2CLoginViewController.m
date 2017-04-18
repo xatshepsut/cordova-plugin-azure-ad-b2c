@@ -9,10 +9,16 @@
 #import "AADB2CSettings.h"
 #import "NXOAuth2.h"
 
+#import <SystemConfiguration/SystemConfiguration.h>
+
+
 @interface AADB2CLoginViewController () <UIWebViewDelegate, UIScrollViewDelegate>
 
-@property(strong, nonatomic) IBOutlet UIWebView *loginView;
-@property(strong, nonatomic) IBOutlet UIActivityIndicatorView *activityIndicator;
+@property (strong, nonatomic) IBOutlet UIWebView *loginView;
+@property (strong, nonatomic) IBOutlet UIActivityIndicatorView *activityIndicator;
+@property (strong, nonatomic) IBOutlet UIView *noConnectionView;
+@property (strong, nonatomic) IBOutlet UIButton *retryButton;
+@property (assign, nonatomic) SCNetworkReachabilityRef reachability;
 
 @end
 
@@ -22,6 +28,8 @@
 - (void)viewDidLoad {
   [super viewDidLoad];
   [self setupUI];
+
+  _reachability = SCNetworkReachabilityCreateWithName(NULL, [@"google.com" UTF8String]);
   
   NSURLCache *URLCache = [[NSURLCache alloc] initWithMemoryCapacity:(4 * 1024 * 1024) diskCapacity:(20 * 1024 * 1024) diskPath:nil];
   [NSURLCache setSharedURLCache:URLCache];
@@ -30,14 +38,44 @@
   [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(failedToRequestAccess:) name:NXOAuth2AccountStoreDidFailToRequestAccessNotification object:nil];
 }
 
-
 - (void)didReceiveMemoryWarning {
   [super didReceiveMemoryWarning];
 }
 
+- (BOOL)hasNetworkConnection {
+  BOOL hasConneciton = NO;
+  SCNetworkReachabilityFlags flags;
+
+  if (SCNetworkReachabilityGetFlags(_reachability, &flags) &&
+      (flags & kSCNetworkReachabilityFlagsReachable) != 0) {
+    if ((flags & kSCNetworkReachabilityFlagsConnectionRequired) == 0) {
+      hasConneciton = YES;
+    }
+
+    if ((((flags & kSCNetworkReachabilityFlagsConnectionOnDemand) != 0) ||
+         ((flags & kSCNetworkReachabilityFlagsConnectionOnTraffic) != 0)) &&
+        ((flags & kSCNetworkReachabilityFlagsInterventionRequired) == 0)) {
+      hasConneciton = YES;
+    }
+
+    if ((flags & kSCNetworkReachabilityFlagsIsWWAN) == kSCNetworkReachabilityFlagsIsWWAN) {
+      hasConneciton = YES;
+    }
+  }
+
+  return hasConneciton;
+}
+
+#pragma mark - UI
+
 - (void)setupUI {
   [self.view setBackgroundColor:[UIColor whiteColor]];
-  
+
+  NSArray *sideAttributes = @[@(NSLayoutAttributeTop), @(NSLayoutAttributeRight), @(NSLayoutAttributeBottom), @(NSLayoutAttributeLeft)];
+
+
+  // Login web view
+
   _loginView = [[UIWebView alloc] initWithFrame:self.view.frame];
   [_loginView setTranslatesAutoresizingMaskIntoConstraints:NO];
   [_loginView setDelegate:self];
@@ -45,24 +83,84 @@
   [_loginView.scrollView setBounces:NO];
   [_loginView.scrollView setDelegate:self];
   [self.view addSubview:_loginView];
-  
-  [self.view addConstraint:[NSLayoutConstraint constraintWithItem:_loginView attribute:NSLayoutAttributeBottom relatedBy:NSLayoutRelationEqual toItem:self.view attribute:NSLayoutAttributeBottom multiplier:1.0f constant:0.0f]];
-  [self.view addConstraint:[NSLayoutConstraint constraintWithItem:_loginView attribute:NSLayoutAttributeLeading relatedBy:NSLayoutRelationEqual toItem:self.view attribute:NSLayoutAttributeLeading multiplier:1.0f constant:0.0f]];
-  [self.view addConstraint:[NSLayoutConstraint constraintWithItem:_loginView attribute:NSLayoutAttributeTrailing relatedBy:NSLayoutRelationEqual toItem:self.view attribute:NSLayoutAttributeTrailing multiplier:1.0f constant:0.0f]];
-  [self.view addConstraint:[NSLayoutConstraint constraintWithItem:_loginView attribute:NSLayoutAttributeTop relatedBy:NSLayoutRelationEqual toItem:self.view attribute:NSLayoutAttributeTop multiplier:1.0f constant:0.0f]];
-  
+
+  for (NSNumber *attr in sideAttributes) {
+    [self addConstraintTo:self.view relativeTo:_loginView withAttribute:[attr integerValue] andConstant:0.0f];
+  }
+
+
+  // Activity indicator
+
   _activityIndicator = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhiteLarge];
   [_activityIndicator setColor:[UIColor grayColor]];
   [_activityIndicator setCenter:self.view.center];
   [self.view addSubview:_activityIndicator];
-  
-  [self.view addConstraint:[NSLayoutConstraint constraintWithItem:_activityIndicator attribute:NSLayoutAttributeCenterX relatedBy:NSLayoutRelationEqual toItem:self.view attribute:NSLayoutAttributeCenterX multiplier:1 constant:0]];
-  [self.view addConstraint:[NSLayoutConstraint constraintWithItem:_activityIndicator attribute:NSLayoutAttributeCenterY relatedBy:NSLayoutRelationEqual toItem:self.view attribute:NSLayoutAttributeCenterY multiplier:1 constant:0]];
-  
+
+  [self addConstraintTo:self.view relativeTo:_activityIndicator withAttribute:NSLayoutAttributeCenterX andConstant:0.0f];
+  [self addConstraintTo:self.view relativeTo:_activityIndicator withAttribute:NSLayoutAttributeCenterY andConstant:0.0f];
+
   [_activityIndicator startAnimating];
+
+
+  // No connection view
+
+  _noConnectionView = [[UIView alloc] initWithFrame:self.view.frame];
+  [_noConnectionView setTranslatesAutoresizingMaskIntoConstraints:NO];
+  [_noConnectionView setBackgroundColor:[UIColor whiteColor]];
+  [_noConnectionView setHidden:YES];
+  [self.view addSubview:_noConnectionView];
+
+  for (NSNumber *attr in sideAttributes) {
+    [self addConstraintTo:self.view relativeTo:_noConnectionView withAttribute:[attr integerValue] andConstant:0.0f];
+  }
+
+  UILabel *noConnectionLabel = [[UILabel alloc] init];
+  [noConnectionLabel setTranslatesAutoresizingMaskIntoConstraints:NO];
+  [noConnectionLabel setNumberOfLines:0];
+  [noConnectionLabel setText:@"You do not have an internet connection right now.\nPlease connect and then try again."];
+  [noConnectionLabel setFont:[UIFont fontWithName:noConnectionLabel.font.fontName size:18]];
+  [noConnectionLabel setTextAlignment:NSTextAlignmentCenter];
+  [_noConnectionView addSubview:noConnectionLabel];
+
+  [self addConstraintTo:_noConnectionView relativeTo:noConnectionLabel withAttribute:NSLayoutAttributeLeft andConstant:20.0f];
+  [self addConstraintTo:_noConnectionView relativeTo:noConnectionLabel withAttribute:NSLayoutAttributeRight andConstant:-20.0f];
+  [self addConstraintTo:_noConnectionView relativeTo:noConnectionLabel withAttribute:NSLayoutAttributeCenterY andConstant:-100.0f];
+
+  _retryButton = [UIButton buttonWithType:UIButtonTypeSystem];
+  [_retryButton setTranslatesAutoresizingMaskIntoConstraints:NO];
+  [_retryButton setBackgroundColor:[UIColor grayColor]];
+  [_retryButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+  [_retryButton setTitle:@"Retry" forState:UIControlStateNormal];
+  [_retryButton.titleLabel setFont:[UIFont fontWithName:_retryButton.titleLabel.font.fontName size:18]];
+  [_retryButton.layer setCornerRadius:5.0f];
+  [_retryButton.layer setMasksToBounds:YES];
+  [_noConnectionView addSubview:_retryButton];
+
+  [self addConstraintTo:_noConnectionView relativeTo:_retryButton withAttribute:NSLayoutAttributeCenterX andConstant:0.0f];
+  [self addConstraintTo:_noConnectionView relativeTo:_retryButton withAttribute:NSLayoutAttributeCenterY andConstant:0.0f];
+  [_retryButton addConstraint:[NSLayoutConstraint constraintWithItem:_retryButton attribute:NSLayoutAttributeWidth relatedBy:NSLayoutRelationEqual toItem:nil attribute:NSLayoutAttributeNotAnAttribute multiplier:1.0f constant:80.0f]];
 }
 
+- (void)setupNoConnectionViewWithSelector:(SEL)selector {
+  [_noConnectionView setHidden:NO];
+  [_retryButton removeTarget:nil action:NULL forControlEvents:UIControlEventAllEvents];
+  [_retryButton addTarget:self action:selector forControlEvents:UIControlEventTouchUpInside];
+}
+
+- (void)addConstraintTo:(UIView *)view relativeTo:(UIView *)secondView withAttribute:(NSLayoutAttribute)attr andConstant:(CGFloat)constant {
+  [view addConstraint:[NSLayoutConstraint constraintWithItem:secondView attribute:attr relatedBy:NSLayoutRelationEqual toItem:view attribute:attr multiplier:1.0f constant:constant]];
+}
+
+#pragma mark - Public
+
 - (void)authenticate {
+  if (![self hasNetworkConnection]) {
+    [self setupNoConnectionViewWithSelector:@selector(authenticate)];
+    return;
+  }
+
+  [_noConnectionView setHidden:YES];
+
   AADB2CSettings *settings = [AADB2CSettings sharedInstance];
   
   [[NXOAuth2AccountStore sharedStore] requestAccessToAccountWithType:settings.accountIdentifier withPreparedAuthorizationURLHandler:^(NSURL *preparedURL) {
@@ -71,6 +169,13 @@
 }
 
 - (void)reauthenticate {
+  if (![self hasNetworkConnection]) {
+    [self setupNoConnectionViewWithSelector:@selector(reauthenticate)];
+    return;
+  }
+
+  [_noConnectionView setHidden:YES];
+
   NSURL *url = [NSURL URLWithString:[[AADB2CSettings sharedInstance] deauthUrl]];
 
   [[[NSURLSession sharedSession] dataTaskWithURL:url completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
