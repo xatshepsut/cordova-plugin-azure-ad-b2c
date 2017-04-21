@@ -14,6 +14,7 @@
 @property (strong, nonatomic) NSString *tenantName;
 @property (strong, nonatomic) NSString *policyName;
 
+@property (strong, nonatomic) NSString *baseUrl;
 @property (strong, nonatomic) NSString *authUrl;
 @property (strong, nonatomic) NSString *deauthUrl;
 @property (strong, nonatomic) NSString *loginUrl;

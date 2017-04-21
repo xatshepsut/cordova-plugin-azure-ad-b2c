@@ -19,7 +19,8 @@
     instance.clientId = @"";
     instance.tenantName = @"";
     instance.policyName = @"";
-    
+
+    instance.baseUrl = @"https://login.microsoftonline.com";
     instance.accountIdentifier = @"B2C_Acccount";
     instance.clientSecret = @"";
     instance.bhh = @"urn:ietf:wg:oauth:2.0:oob";
@@ -41,19 +42,18 @@
 }
 
 - (NSString *)authUrl {
-  return [NSString stringWithFormat:@"https://login.microsoftonline.com/%@/oauth2/v2.0/authorize?p=%@", _tenantName, _policyName];
+  return [NSString stringWithFormat:@"%@/%@/oauth2/v2.0/authorize?p=%@", _baseUrl, _tenantName, _policyName];
 }
 
 - (NSString *)deauthUrl {
-  return [NSString stringWithFormat:@"https://login.microsoftonline.com/%@/oauth2/v2.0/logout?p=%@", _tenantName, _policyName];
-  // &post_logout_redirect_uri=https%3A%2F%2Faadb2cplayground.azurewebsites.net%2F
+  return [NSString stringWithFormat:@"%@/%@/oauth2/v2.0/logout?p=%@", _baseUrl, _tenantName, _policyName];
 }
 - (NSString *)loginUrl {
-  return [NSString stringWithFormat:@"https://login.microsoftonline.com/%@/login", _tenantName];
+  return [NSString stringWithFormat:@"%@/%@/login", _baseUrl, _tenantName];
 }
 
 - (NSString *)tokenUrl {
-  return [NSString stringWithFormat:@"https://login.microsoftonline.com/%@/oauth2/v2.0/token?p=%@", _tenantName, _policyName];
+  return [NSString stringWithFormat:@"%@/%@/oauth2/v2.0/token?p=%@", _baseUrl, _tenantName, _policyName];
 }
 
 @end
