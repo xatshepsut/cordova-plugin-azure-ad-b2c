@@ -25,21 +25,20 @@
 
 @implementation AADB2CLoginViewController
 
-- (void)viewDidLoad {
-  [super viewDidLoad];
+-(void)willMoveToSuperview:(UIView *)newSuperview {
+  if (!newSuperview) {
+    return;
+  }
+
   [self setupUI];
 
   _reachability = SCNetworkReachabilityCreateWithName(NULL, [@"google.com" UTF8String]);
-  
+
   NSURLCache *URLCache = [[NSURLCache alloc] initWithMemoryCapacity:(4 * 1024 * 1024) diskCapacity:(20 * 1024 * 1024) diskPath:nil];
   [NSURLCache setSharedURLCache:URLCache];
 
   [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(accountDidChange:) name:NXOAuth2AccountStoreAccountsDidChangeNotification object:nil];
   [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(failedToRequestAccess:) name:NXOAuth2AccountStoreDidFailToRequestAccessNotification object:nil];
-}
-
-- (void)didReceiveMemoryWarning {
-  [super didReceiveMemoryWarning];
 }
 
 - (BOOL)hasNetworkConnection {
@@ -66,26 +65,55 @@
   return hasConneciton;
 }
 
+- (void)presetEmail {
+  NSString *jsCode = @"\
+    var email = '%@';\
+    presetEmail(email);\
+    \
+    document.addEventListener('DOMContentLoaded', function(event) {\
+      presetEmail(email);\
+    });\
+    \
+    function presetEmail(email) {\
+      var inputElement = document.getElementById('logonIdentifier');\
+      inputElement.value = email;\
+      \
+      setTimeout(function() {\
+        inputElement.focus();\
+        inputElement.blur();\
+      }, 200);\
+    };\
+  ";
+
+  [_loginView stringByEvaluatingJavaScriptFromString:[NSString stringWithFormat:jsCode, _email ?: @""]];
+}
+
 #pragma mark - UI
 
 - (void)setupUI {
-  [self.view setBackgroundColor:[UIColor whiteColor]];
+  UIView *view = self;
+  [view setBackgroundColor:[UIColor whiteColor]];
+
+  if (!_shouldShowLoadingIndicator) {
+    [view setHidden:YES];
+  }
 
   NSArray *sideAttributes = @[@(NSLayoutAttributeTop), @(NSLayoutAttributeRight), @(NSLayoutAttributeBottom), @(NSLayoutAttributeLeft)];
 
 
   // Login web view
 
-  _loginView = [[UIWebView alloc] initWithFrame:self.view.frame];
+  _loginView = [[UIWebView alloc] initWithFrame:view.frame];
   [_loginView setTranslatesAutoresizingMaskIntoConstraints:NO];
   [_loginView setDelegate:self];
   [_loginView.scrollView setScrollEnabled:NO];
   [_loginView.scrollView setBounces:NO];
   [_loginView.scrollView setDelegate:self];
-  [self.view addSubview:_loginView];
+  [_loginView setBackgroundColor:[UIColor clearColor]];
+  [view addSubview:_loginView];
 
   for (NSNumber *attr in sideAttributes) {
-    [self addConstraintTo:self.view relativeTo:_loginView withAttribute:[attr integerValue] andConstant:0.0f];
+    [self addConstraintTo:view relativeTo:_loginView withAttribute:[attr integerValue] andConstant:0.0f];
   }
 
 
@@ -93,25 +121,27 @@
 
   _activityIndicator = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhiteLarge];
   [_activityIndicator setColor:[UIColor grayColor]];
-  [_activityIndicator setCenter:self.view.center];
-  [self.view addSubview:_activityIndicator];
+  [_activityIndicator setCenter:view.center];
+  [view addSubview:_activityIndicator];
 
-  [self addConstraintTo:self.view relativeTo:_activityIndicator withAttribute:NSLayoutAttributeCenterX andConstant:0.0f];
-  [self addConstraintTo:self.view relativeTo:_activityIndicator withAttribute:NSLayoutAttributeCenterY andConstant:0.0f];
+  [self addConstraintTo:view relativeTo:_activityIndicator withAttribute:NSLayoutAttributeCenterX andConstant:0.0f];
+  [self addConstraintTo:view relativeTo:_activityIndicator withAttribute:NSLayoutAttributeCenterY andConstant:0.0f];
 
-  [_activityIndicator startAnimating];
+  if (_shouldShowLoadingIndicator) {
+    [_activityIndicator startAnimating];
+  }
 
 
   // No connection view
 
-  _noConnectionView = [[UIView alloc] initWithFrame:self.view.frame];
+  _noConnectionView = [[UIView alloc] initWithFrame:view.frame];
   [_noConnectionView setTranslatesAutoresizingMaskIntoConstraints:NO];
   [_noConnectionView setBackgroundColor:[UIColor whiteColor]];
   [_noConnectionView setHidden:YES];
-  [self.view addSubview:_noConnectionView];
+  [view addSubview:_noConnectionView];
 
   for (NSNumber *attr in sideAttributes) {
-    [self addConstraintTo:self.view relativeTo:_noConnectionView withAttribute:[attr integerValue] andConstant:0.0f];
+    [self addConstraintTo:view relativeTo:_noConnectionView withAttribute:[attr integerValue] andConstant:0.0f];
   }
 
   UILabel *noConnectionLabel = [[UILabel alloc] init];
@@ -162,7 +192,7 @@
   [_noConnectionView setHidden:YES];
 
   AADB2CSettings *settings = [AADB2CSettings sharedInstance];
-  
+
   [[NXOAuth2AccountStore sharedStore] requestAccessToAccountWithType:settings.accountIdentifier withPreparedAuthorizationURLHandler:^(NSURL *preparedURL) {
     [_loginView loadRequest:[NSURLRequest requestWithURL:preparedURL]];
   }];
@@ -237,24 +267,35 @@
 - (BOOL)webView:(UIWebView *)webView shouldStartLoadWithRequest:(NSURLRequest *)request navigationType:(UIWebViewNavigationType)navigationType {
   AADB2CSettings *settings = [AADB2CSettings sharedInstance];
   NSString *urlString = [request.URL absoluteString];
-  
+
   if ([urlString rangeOfString:settings.bhh options:NSCaseInsensitiveSearch].location != NSNotFound) {
     [_loginView setHidden:YES];
     [_activityIndicator startAnimating];
-    
+
     [[NXOAuth2AccountStore sharedStore] handleRedirectURL:request.URL];
   }
-  
+
   return YES;
 }
 
 - (void)webViewDidFinishLoad:(UIWebView *)webView {
   AADB2CSettings *settings = [AADB2CSettings sharedInstance];
   NSString *urlString = [_loginView.request.URL absoluteString];
-  
+
   if ([urlString rangeOfString:settings.authUrl options:NSCaseInsensitiveSearch].location != NSNotFound ||
       [urlString rangeOfString:settings.loginUrl options:NSCaseInsensitiveSearch].location != NSNotFound) {
     [_activityIndicator stopAnimating];
+
+    void (^block)() = ^(void) {
+      [self setHidden:NO];
+      [self presetEmail];
+    };
+
+    [NSTimer scheduledTimerWithTimeInterval:1.0
+                                     target:[NSBlockOperation blockOperationWithBlock:block]
+                                   selector:@selector(main)
+                                   userInfo:nil
+                                    repeats:NO];
   }
 }
 

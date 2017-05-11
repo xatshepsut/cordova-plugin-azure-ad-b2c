@@ -13,6 +13,7 @@
 @interface AADB2CAuthenticator () <AADB2CLoginViewControllerDelegate>
 
 @property (copy) NSString *callbackId;
+@property (nonatomic, strong) AADB2CLoginViewController *loginView;
 
 @end
 
@@ -28,10 +29,15 @@
   if ([[AADB2CSettings sharedInstance] isSetup]) {
     [self setupOAuth2AccountStore];
 
-    AADB2CLoginViewController *loginViewController = [[AADB2CLoginViewController alloc] init];
-    [loginViewController setDelegate:self];
-    [self.viewController presentViewController:loginViewController animated:YES completion:nil];
-    [loginViewController authenticate];
+    _loginView = [[AADB2CLoginViewController alloc] initWithFrame:self.webView.superview.frame];
+    [_loginView setDelegate:self];
+    [_loginView setShouldShowLoadingIndicator:[[params objectForKey:@"showLoadingIndicator"] boolValue]];
+    [_loginView setEmail:[params objectForKey:@"email"]];
+
+    [self.webView.superview addSubview:_loginView];
+    [self.webView.superview bringSubviewToFront:_loginView];
+
+    [_loginView authenticate];
   } else {
     CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Required parameters are missing."];
     [self returnWithResult:result];
@@ -42,10 +48,14 @@
   _callbackId = command.callbackId;
 
   if ([[AADB2CSettings sharedInstance] isSetup]) {
-    AADB2CLoginViewController *loginViewController = [[AADB2CLoginViewController alloc] init];
-    [loginViewController setDelegate:self];
-    [self.viewController presentViewController:loginViewController animated:YES completion:nil];
-    [loginViewController reauthenticate];
+    _loginView = [[AADB2CLoginViewController alloc] initWithFrame:self.webView.superview.frame];
+    [_loginView setDelegate:self];
+    [_loginView setShouldShowLoadingIndicator:YES];
+
+    [self.webView.superview addSubview:_loginView];
+    [self.webView.superview bringSubviewToFront:_loginView];
+
+    [_loginView reauthenticate];
   } else {
     CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@""];
     [self returnWithResult:result];
@@ -70,9 +80,25 @@
 }
 
 - (void)returnWithResult:(CDVPluginResult *)result {
-  [self.viewController dismissViewControllerAnimated:YES completion:nil];
-  [self.commandDelegate sendPluginResult:result callbackId:_callbackId];
-  _callbackId = nil;
+  CDVPluginResult *intermediateResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
+  [intermediateResult setKeepCallback:[NSNumber numberWithBool:YES]];
+  [self.commandDelegate sendPluginResult:intermediateResult callbackId:_callbackId];
+
+  void (^block)() = ^(void) {
+    [_loginView removeFromSuperview];
+
+    [result setKeepCallback:[NSNumber numberWithBool:NO]];
+    [self.commandDelegate sendPluginResult:result callbackId:_callbackId];
+
+    _callbackId = nil;
+    _loginView = nil;
+  };
+
+  [NSTimer scheduledTimerWithTimeInterval:0.5
+                                   target:[NSBlockOperation blockOperationWithBlock:block]
+                                 selector:@selector(main)
+                                 userInfo:nil
+                                  repeats:NO];
 }
 
 #pragma mark - AADB2CLoginViewControllerDelegate

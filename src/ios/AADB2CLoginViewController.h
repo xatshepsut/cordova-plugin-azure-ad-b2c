@@ -15,12 +15,16 @@
 @end
 
 
-@interface AADB2CLoginViewController : UIViewController
+@interface AADB2CLoginViewController : UIView
 
-@property(nonatomic, weak, nullable) id <AADB2CLoginViewControllerDelegate> delegate;
+@property (nonatomic, weak, nullable) id <AADB2CLoginViewControllerDelegate> delegate;
+
+@property (nonatomic, strong) NSString * _Nullable email;
+@property (nonatomic, assign) BOOL shouldShowLoadingIndicator;
 
 - (void)authenticate;
 - (void)reauthenticate;
 
 @end
 
+// TODO: Rename class to AADB2CLoginView
