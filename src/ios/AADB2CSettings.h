@@ -6,7 +6,9 @@
 //
 
 #import <Foundation/Foundation.h>
-#import "NXOAuth2Account.h"
+
+@class NXOAuth2Account;
+
 
 @interface AADB2CSettings : NSObject
 
@@ -33,5 +35,7 @@
 
 - (void)setupWithDictionary:(NSDictionary *)dictionary;
 - (BOOL)isSetup;
+- (NSDictionary *)getAccountTokenDetails;
+
 
 @end

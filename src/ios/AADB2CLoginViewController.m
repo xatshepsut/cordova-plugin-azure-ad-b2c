@@ -41,6 +41,8 @@
   [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(failedToRequestAccess:) name:NXOAuth2AccountStoreDidFailToRequestAccessNotification object:nil];
 }
 
+#pragma mark - Helpers
+
 - (BOOL)hasNetworkConnection {
   BOOL hasConneciton = NO;
   SCNetworkReachabilityFlags flags;
@@ -65,6 +67,12 @@
   return hasConneciton;
 }
 
+- (void)addConstraintTo:(UIView *)view relativeTo:(UIView *)secondView withAttribute:(NSLayoutAttribute)attr andConstant:(CGFloat)constant {
+  [view addConstraint:[NSLayoutConstraint constraintWithItem:secondView attribute:attr relatedBy:NSLayoutRelationEqual toItem:view attribute:attr multiplier:1.0f constant:constant]];
+}
+
+#pragma mark - JS
+
 - (void)presetEmail {
   NSString *jsCode = @"\
     var email = '%@';\
@@ -87,6 +95,60 @@
 
   [_loginView stringByEvaluatingJavaScriptFromString:[NSString stringWithFormat:jsCode, _email ?: @""]];
 }
+
+- (void)handleNextButtonClick {
+  NSString *jsCode = @"\
+    var element = document.getElementById('next');\
+    element.addEventListener('click', function() {\
+      disableNextButton();\
+    });\
+    \
+    function disableNextButton() {\
+      element.disabled = true;\
+      element.innerHTML = 'Signing In...';\
+    };\
+  ";
+
+  [_loginView stringByEvaluatingJavaScriptFromString:jsCode];
+}
+
+- (void)watchErrorMessageVisibility {
+  NSString *jsCode = @"\
+    var config = { attributes: true, attributeFilter: ['aria-hidden'] };\
+    var errorVisibilityObserver = new MutationObserver(function(mutations) {\
+      mutations.forEach(function(mutationRecord) {\
+        console.log(mutationRecord);\
+        if (mutationRecord.target.getAttribute('aria-hidden') == 'false') {\
+          setTimeout(function() {\
+            enableNextButton();\
+          }, 300);\
+        }\
+      });\
+    });\
+    \
+    var errorElements = document.getElementsByClassName('error');\
+    for (var i = 0; i < errorElements.length; i++) {\
+      errorVisibilityObserver.observe(errorElements[i], config);\
+    }\
+    \
+    function enableNextButton() {\
+      var element = document.getElementById('next');\
+      element.disabled = false;\
+      element.innerHTML = 'Sign In';\
+    };\
+  ";
+
+  [_loginView stringByEvaluatingJavaScriptFromString:jsCode];
+}
+
+- (void)unwatchErrorMessageVisibility {
+  NSString *jsCode = @"\
+    errorVisibilityObserver.disconnect();\
+  ";
+
+  [_loginView stringByEvaluatingJavaScriptFromString:jsCode];
+}
+
 
 #pragma mark - UI
 
@@ -119,15 +181,15 @@
 
   // Activity indicator
 
-  _activityIndicator = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhiteLarge];
-  [_activityIndicator setColor:[UIColor grayColor]];
-  [_activityIndicator setCenter:view.center];
-  [view addSubview:_activityIndicator];
-
-  [self addConstraintTo:view relativeTo:_activityIndicator withAttribute:NSLayoutAttributeCenterX andConstant:0.0f];
-  [self addConstraintTo:view relativeTo:_activityIndicator withAttribute:NSLayoutAttributeCenterY andConstant:0.0f];
-
   if (_shouldShowLoadingIndicator) {
+    _activityIndicator = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhiteLarge];
+    [_activityIndicator setColor:[UIColor grayColor]];
+    [_activityIndicator setCenter:view.center];
+    [view addSubview:_activityIndicator];
+
+    [self addConstraintTo:view relativeTo:_activityIndicator withAttribute:NSLayoutAttributeCenterX andConstant:0.0f];
+    [self addConstraintTo:view relativeTo:_activityIndicator withAttribute:NSLayoutAttributeCenterY andConstant:0.0f];
+
     [_activityIndicator startAnimating];
   }
 
@@ -177,10 +239,6 @@
   [_retryButton addTarget:self action:selector forControlEvents:UIControlEventTouchUpInside];
 }
 
-- (void)addConstraintTo:(UIView *)view relativeTo:(UIView *)secondView withAttribute:(NSLayoutAttribute)attr andConstant:(CGFloat)constant {
-  [view addConstraint:[NSLayoutConstraint constraintWithItem:secondView attribute:attr relatedBy:NSLayoutRelationEqual toItem:view attribute:attr multiplier:1.0f constant:constant]];
-}
-
 #pragma mark - Public
 
 - (void)authenticate {
@@ -223,6 +281,7 @@
     NXOAuth2Account *account = [[AADB2CSettings sharedInstance] account];
     if (account) {
       [[NXOAuth2AccountStore sharedStore] removeAccount:account];
+      [[AADB2CSettings sharedInstance] setAccount:nil];
     }
 
     [self authenticate];
@@ -233,21 +292,12 @@
 
 - (void)accountDidChange:(NSNotification *)notification {
   if (notification.userInfo) {
+    AADB2CSettings *settings = [AADB2CSettings sharedInstance];
     NXOAuth2Account *account = [notification.userInfo objectForKey:NXOAuth2AccountStoreNewAccountUserInfoKey];
-    [[AADB2CSettings sharedInstance] setAccount:account];
+    [settings setAccount:account];
 
     if ([_delegate respondsToSelector:@selector(authenticationCompletedWithResult:)]) {
-      NSDateFormatter *dateFormatter = [[NSDateFormatter alloc] init];
-      [dateFormatter setDateFormat:@"yyyy-MM-dd'T'HH:mm:ssZZZZZ"];
-
-      NSDictionary *dictionary = @{
-        @"tokenType": account.accessToken.tokenType,
-        @"accessToken": account.accessToken.accessToken,
-        @"refreshToken": account.accessToken.refreshToken,
-        @"expiresAt": [dateFormatter stringFromDate:account.accessToken.expiresAt]
-      };
-
-      [_delegate authenticationCompletedWithResult:dictionary];
+      [_delegate authenticationCompletedWithResult:[settings getAccountTokenDetails]];
     }
   } else {
     [[AADB2CSettings sharedInstance] setAccount:nil];
@@ -269,9 +319,7 @@
   NSString *urlString = [request.URL absoluteString];
 
   if ([urlString rangeOfString:settings.bhh options:NSCaseInsensitiveSearch].location != NSNotFound) {
-    [_loginView setHidden:YES];
-    [_activityIndicator startAnimating];
-
+    [self unwatchErrorMessageVisibility];
     [[NXOAuth2AccountStore sharedStore] handleRedirectURL:request.URL];
   }
 
@@ -288,10 +336,13 @@
 
     void (^block)() = ^(void) {
       [self setHidden:NO];
+
       [self presetEmail];
+      [self watchErrorMessageVisibility];
+      [self handleNextButtonClick];
     };
 
-    [NSTimer scheduledTimerWithTimeInterval:1.0
+    [NSTimer scheduledTimerWithTimeInterval:2.0
                                      target:[NSBlockOperation blockOperationWithBlock:block]
                                    selector:@selector(main)
                                    userInfo:nil

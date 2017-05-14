@@ -10,6 +10,7 @@
 #import "AADB2CSettings.h"
 #import "NXOAuth2.h"
 
+
 @interface AADB2CAuthenticator () <AADB2CLoginViewControllerDelegate>
 
 @property (copy) NSString *callbackId;
@@ -22,11 +23,18 @@
 
 - (void)authenticate:(CDVInvokedUrlCommand *)command {
   _callbackId = command.callbackId;
-  
+
+  AADB2CSettings *settings = [AADB2CSettings sharedInstance];
+
+  if ([settings account] && [settings isSetup]) {
+    [self authenticationCompletedWithResult:[settings getAccountTokenDetails]];
+    return;
+  }
+
   NSDictionary *params = [command.arguments objectAtIndex: 0];
-  [[AADB2CSettings sharedInstance] setupWithDictionary:params];
+  [settings setupWithDictionary:params];
   
-  if ([[AADB2CSettings sharedInstance] isSetup]) {
+  if ([settings isSetup]) {
     [self setupOAuth2AccountStore];
 
     _loginView = [[AADB2CLoginViewController alloc] initWithFrame:self.webView.superview.frame];
@@ -103,13 +111,13 @@
 
 #pragma mark - AADB2CLoginViewControllerDelegate
 
-- (void)authenticationCompletedWithResult:(NSDictionary *)token {
-  CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:token];
+- (void)authenticationCompletedWithResult:(NSDictionary *)dictionary {
+  CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:dictionary];
   [self returnWithResult:result];
 }
 
-- (void)authenticationFailedWithErrorMessage:(NSString *)errorMessage {
-  CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:errorMessage];
+- (void)authenticationFailedWithErrorMessage:(NSString *)message {
+  CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:message];
   [self returnWithResult:result];
 }
 
